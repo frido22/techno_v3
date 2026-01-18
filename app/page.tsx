@@ -17,6 +17,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [expandedCode, setExpandedCode] = useState<Set<number>>(new Set());
   const [strudelModule, setStrudelModule] = useState<{
     evaluate: (code: string) => Promise<void>;
     hush: () => void;
@@ -75,8 +76,8 @@ export default function Home() {
       };
       setStrudelModule(api);
       return api;
-    } catch (error) {
-      console.error("Failed to initialize Strudel:", error);
+    } catch (err) {
+      console.error("Failed to initialize Strudel:", err);
       setError("Failed to initialize audio engine");
       return null;
     } finally {
@@ -117,22 +118,30 @@ export default function Home() {
     handleStop();
     setHistory([]);
     setActiveIndex(null);
+    setExpandedCode(new Set());
     setPrompt("");
+  };
+
+  const toggleCode = (id: number) => {
+    setExpandedCode((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   return (
     <main className="min-h-screen bg-neutral-900 text-neutral-300 p-8 md:p-16">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
-        <header className="mb-12 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-medium text-neutral-100 tracking-tight">
-              Minimal Techno
-            </h1>
-            <p className="text-sm text-neutral-500 mt-1">
-              AI-generated techno patterns
-            </p>
-          </div>
+        <header className="mb-8 flex items-center justify-between">
+          <h1 className="text-lg font-medium text-neutral-100 tracking-tight">
+            Minimal Techno
+          </h1>
           {history.length > 0 && (
             <button
               onClick={handleClear}
@@ -145,45 +154,53 @@ export default function Home() {
 
         {/* History */}
         {history.length > 0 && (
-          <section className="mb-8 space-y-3">
+          <section className="mb-6 space-y-3">
             {history.map((item, index) => (
               <div
                 key={item.id}
-                className={`border bg-neutral-800/50 transition-colors ${
+                className={`bg-neutral-800/50 rounded-lg transition-colors ${
                   activeIndex === index
-                    ? "border-neutral-500"
-                    : "border-neutral-700"
+                    ? "bg-neutral-800"
+                    : ""
                 }`}
               >
-                <div className="px-4 py-3 border-b border-neutral-700 flex items-center justify-between">
+                <div className="px-4 py-3 flex items-center justify-between">
                   <span className="text-xs text-neutral-400">
                     {item.prompt}
                   </span>
                   <div className="flex gap-2">
                     <button
+                      onClick={() => toggleCode(item.id)}
+                      className="px-3 py-1 text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
+                    >
+                      {expandedCode.has(item.id) ? "Hide" : "Code"}
+                    </button>
+                    <button
                       onClick={() => handlePlay(item.code, index)}
                       disabled={isLoading}
-                      className="px-3 py-1 text-xs bg-neutral-700 hover:bg-neutral-600 disabled:opacity-50 transition-colors"
+                      className="px-3 py-1 text-xs bg-neutral-700 rounded hover:bg-neutral-600 disabled:opacity-50 transition-colors"
                     >
                       {isLoading ? "..." : isPlaying && activeIndex === index ? "Restart" : "Play"}
                     </button>
                     {isPlaying && activeIndex === index && (
                       <button
                         onClick={handleStop}
-                        className="px-3 py-1 text-xs bg-neutral-700 hover:bg-neutral-600 transition-colors"
+                        className="px-3 py-1 text-xs bg-neutral-700 rounded hover:bg-neutral-600 transition-colors"
                       >
                         Stop
                       </button>
                     )}
                   </div>
                 </div>
-                <div className="p-4">
-                  <pre className="text-xs text-neutral-400 font-mono whitespace-pre-wrap leading-relaxed">
-                    {item.code}
-                  </pre>
-                </div>
+                {expandedCode.has(item.id) && (
+                  <div className="px-4 pb-3 overflow-x-auto">
+                    <pre className="text-xs text-neutral-500 font-mono whitespace-pre leading-relaxed">
+                      {item.code}
+                    </pre>
+                  </div>
+                )}
                 {isPlaying && activeIndex === index && (
-                  <div className="border-t border-neutral-700 bg-neutral-900/50 p-3">
+                  <div className="px-4 pb-3">
                     <Visualizer isPlaying={true} />
                   </div>
                 )}
@@ -194,23 +211,21 @@ export default function Home() {
 
         {/* Error */}
         {error && (
-          <div className="mb-8 p-4 bg-red-950/50 border border-red-900/50 text-red-400 text-sm">
+          <div className="mb-6 p-4 bg-red-950/50 rounded-lg text-red-400 text-sm">
             {error}
           </div>
         )}
 
         {/* Skeleton Loading */}
         {isGenerating && (
-          <section className="mb-8">
-            <div className="border border-neutral-700 bg-neutral-800/50">
-              <div className="px-4 py-3 border-b border-neutral-700">
-                <div className="h-3 w-32 bg-neutral-700 animate-pulse" />
-              </div>
-              <div className="p-4 space-y-2">
-                <div className="h-3 w-full bg-neutral-700/50 animate-pulse" />
-                <div className="h-3 w-4/5 bg-neutral-700/50 animate-pulse" />
-                <div className="h-3 w-3/4 bg-neutral-700/50 animate-pulse" />
-                <div className="h-3 w-5/6 bg-neutral-700/50 animate-pulse" />
+          <section className="mb-6">
+            <div className="bg-neutral-800/50 rounded-lg">
+              <div className="px-4 py-3 flex items-center justify-between">
+                <div className="h-3 w-40 bg-neutral-700 rounded animate-pulse" />
+                <div className="flex gap-2">
+                  <div className="h-6 w-12 bg-neutral-700/50 rounded animate-pulse" />
+                  <div className="h-6 w-12 bg-neutral-700 rounded animate-pulse" />
+                </div>
               </div>
             </div>
           </section>
@@ -218,7 +233,7 @@ export default function Home() {
 
         {/* Input Section */}
         <section>
-          <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-3">
+          <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">
             {history.length > 0 ? "Refine the mix" : "Describe your sound"}
           </label>
           <textarea
@@ -230,12 +245,12 @@ export default function Home() {
                 ? "add more hi-hats, make it faster, add reverb..."
                 : "dark minimal techno for a 2 hour work session..."
             }
-            className="w-full h-20 px-4 py-3 bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 resize-none text-sm"
+            className="w-full h-20 px-4 py-3 bg-neutral-800 rounded-lg text-neutral-200 placeholder-neutral-600 focus:outline-none border-none resize-none text-sm"
           />
           <button
             onClick={handleGenerate}
             disabled={isGenerating || !prompt.trim()}
-            className="mt-3 px-4 py-2 bg-neutral-100 text-neutral-900 text-sm font-medium hover:bg-white disabled:bg-neutral-700 disabled:text-neutral-500 disabled:cursor-not-allowed transition-colors"
+            className="mt-2 px-4 py-2 bg-neutral-100 text-neutral-900 text-sm font-medium rounded-lg hover:bg-white disabled:bg-neutral-700 disabled:text-neutral-500 disabled:cursor-not-allowed transition-colors"
           >
             {isGenerating ? "Generating..." : history.length > 0 ? "Refine" : "Generate"}
           </button>

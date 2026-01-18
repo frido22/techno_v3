@@ -42,6 +42,9 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model: "z-ai/glm-4.7",
         messages,
+        provider: {
+          order: ["Cerebras"],
+        },
       }),
     });
 

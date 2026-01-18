@@ -9,7 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "@strudel/web": "^1.3.0",
     "next": "14.2.35",
     "react": "^18",

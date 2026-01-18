@@ -5,7 +5,8 @@ import { useEffect, useRef } from "react";
 export default function Visualizer({ isPlaying }: { isPlaying: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
-  const barsRef = useRef<number[]>([]);
+  const phaseRef = useRef(0);
+  const smoothedRef = useRef<number[]>(new Array(128).fill(0));
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -16,45 +17,37 @@ export default function Visualizer({ isPlaying }: { isPlaying: boolean }) {
 
     if (!isPlaying) {
       cancelAnimationFrame(animationRef.current);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const fadeOut = () => {
+        let hasValue = false;
+        for (let i = 0; i < smoothedRef.current.length; i++) {
+          smoothedRef.current[i] *= 0.9;
+          if (Math.abs(smoothedRef.current[i]) > 0.01) hasValue = true;
+        }
+        drawWave(ctx, canvas, smoothedRef.current);
+        if (hasValue) {
+          requestAnimationFrame(fadeOut);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      };
+      fadeOut();
       return;
     }
 
-    const barCount = 48;
-    const gap = 2;
-    const barWidth = (canvas.width - (barCount - 1) * gap) / barCount;
-    if (barsRef.current.length === 0) {
-      barsRef.current = new Array(barCount).fill(0);
-    }
-
     const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const time = Date.now() / 80;
+      phaseRef.current += 0.02;
+      const points = 128;
 
-      for (let i = 0; i < barCount; i++) {
-        const lowFreq = i < 8;
-        const midFreq = i >= 8 && i < 24;
-        const highFreq = i >= 24;
-
-        let target = 0;
-        if (lowFreq) {
-          target = Math.abs(Math.sin(time * 1.5)) * 0.9 + Math.random() * 0.1;
-        } else if (midFreq) {
-          target = Math.sin(time * 0.8 + i * 0.2) * 0.3 + 0.4 + Math.random() * 0.15;
-        } else if (highFreq) {
-          target = Math.abs(Math.sin(time * 3 + i * 0.5)) * 0.5 + Math.random() * 0.3;
-        }
-
-        target = Math.min(1, target) * canvas.height * 0.9;
-        barsRef.current[i] += (target - barsRef.current[i]) * 0.25;
-
-        const h = barsRef.current[i];
-        const x = i * (barWidth + gap);
-
-        ctx.fillStyle = "#525252";
-        ctx.fillRect(x, canvas.height - h, barWidth, h);
+      for (let i = 0; i < points; i++) {
+        const n = i / points;
+        const target =
+          Math.sin(n * Math.PI * 3 + phaseRef.current) * 0.4 +
+          Math.sin(n * Math.PI * 5 - phaseRef.current * 0.7) * 0.25 +
+          Math.sin(n * Math.PI * 2 + phaseRef.current * 1.3) * 0.15;
+        smoothedRef.current[i] += (target - smoothedRef.current[i]) * 0.1;
       }
 
+      drawWave(ctx, canvas, smoothedRef.current);
       animationRef.current = requestAnimationFrame(draw);
     };
 
@@ -63,10 +56,34 @@ export default function Visualizer({ isPlaying }: { isPlaying: boolean }) {
     return () => cancelAnimationFrame(animationRef.current);
   }, [isPlaying]);
 
+  function drawWave(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, values: number[]) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const centerY = canvas.height / 2;
+    const amplitude = canvas.height * 0.35;
+
+    ctx.beginPath();
+
+    for (let i = 0; i < values.length; i++) {
+      const x = (i / (values.length - 1)) * canvas.width;
+      const y = centerY - values[i] * amplitude;
+
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+
+    ctx.strokeStyle = "#525252";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
   return (
     <canvas
       ref={canvasRef}
-      width={576}
+      width={800}
       height={40}
       className="w-full h-10"
     />
