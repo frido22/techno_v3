@@ -5,8 +5,8 @@ import { useEffect, useRef } from "react";
 export default function Visualizer({ isPlaying }: { isPlaying: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
-  const phaseRef = useRef(0);
   const smoothedRef = useRef<number[]>(new Array(128).fill(0));
+  const phaseRef = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;

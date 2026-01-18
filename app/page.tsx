@@ -53,9 +53,22 @@ export default function Home() {
         code: data.code,
       };
 
+      const newIndex = history.length;
       setHistory((prev) => [...prev, newItem]);
-      setActiveIndex(history.length);
+      setActiveIndex(newIndex);
       setPrompt("");
+
+      // Auto-play the new mix
+      const api = await initStrudel();
+      if (api) {
+        try {
+          api.hush();
+          await api.evaluate(data.code);
+          setIsPlaying(true);
+        } catch (err) {
+          console.error("Auto-play error:", err);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
