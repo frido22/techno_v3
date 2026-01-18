@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Visualizer from "@/components/Visualizer";
 
 interface HistoryItem {
@@ -8,6 +8,31 @@ interface HistoryItem {
   prompt: string;
   code: string;
 }
+
+// Extract BPM from Strudel code (looks for setcpm(XXX))
+function extractBpm(code: string): number {
+  const match = code.match(/setcpm\((\d+)\)/);
+  return match ? parseInt(match[1], 10) : 130;
+}
+
+// Evolution prompts for auto-evolve mode - designed for smooth transitions
+const EVOLUTION_PROMPTS = [
+  "make a subtle variation - keep the same structure, only change one element slightly",
+  "slightly adjust the hi-hat pattern, keep everything else identical",
+  "add a tiny bit more reverb to one element, keep rest the same",
+  "slightly change the melody notes but keep the same rhythm and all other parts",
+  "adjust one filter cutoff value slightly, keep everything else exactly the same",
+  "make the kick slightly punchier, don't change anything else",
+  "add one small percussion hit, keep all other patterns identical",
+  "slightly change the bass notes but keep same rhythm and timing",
+  "adjust the delay time on one element only",
+  "make one synth slightly brighter, keep everything else the same",
+  "remove one small element to create space, keep the rest",
+  "add subtle pan movement to one element only",
+  "slightly vary the gain pattern on the hats, keep rest identical",
+  "change one note in the melody, keep everything else exactly the same",
+  "add a tiny bit of swing to one element only",
+];
 
 export default function Home() {
   const [prompt, setPrompt] = useState("");
@@ -22,6 +47,13 @@ export default function Home() {
     evaluate: (code: string) => Promise<void>;
     hush: () => void;
   } | null>(null);
+
+  // Auto-evolve state
+  const [autoEvolve, setAutoEvolve] = useState(false);
+  const [evolveInterval, setEvolveInterval] = useState(3); // minutes
+  const [timeLeft, setTimeLeft] = useState(0); // seconds until next evolution
+  const evolveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentCode = activeIndex !== null ? history[activeIndex]?.code : null;
 
@@ -58,11 +90,10 @@ export default function Home() {
       setActiveIndex(newIndex);
       setPrompt("");
 
-      // Auto-play the new mix
+      // Auto-play the new mix - no hush() for smooth transition
       const api = await initStrudel();
       if (api) {
         try {
-          api.hush();
           await api.evaluate(data.code);
           setIsPlaying(true);
         } catch (err) {
@@ -117,6 +148,7 @@ export default function Home() {
     if (strudelModule) {
       strudelModule.hush();
       setIsPlaying(false);
+      setAutoEvolve(false);
     }
   };
 
@@ -129,11 +161,94 @@ export default function Home() {
 
   const handleClear = () => {
     handleStop();
+    setAutoEvolve(false);
     setHistory([]);
     setActiveIndex(null);
     setExpandedCode(new Set());
     setPrompt("");
   };
+
+  // Auto-evolve: trigger evolution with random prompt
+  const triggerEvolve = useCallback(async () => {
+    if (!currentCode || isGenerating) return;
+
+    const randomPrompt = EVOLUTION_PROMPTS[Math.floor(Math.random() * EVOLUTION_PROMPTS.length)];
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: randomPrompt,
+          currentCode: currentCode,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to evolve");
+      }
+
+      const newItem: HistoryItem = {
+        id: Date.now(),
+        prompt: randomPrompt,
+        code: data.code,
+      };
+
+      const newIndex = history.length;
+      setHistory((prev) => [...prev, newItem]);
+      setActiveIndex(newIndex);
+
+      // Play the evolved mix - no hush() for smooth transition
+      if (strudelModule) {
+        try {
+          await strudelModule.evaluate(data.code);
+          setIsPlaying(true);
+        } catch (err) {
+          console.error("Auto-evolve play error:", err);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Evolution failed");
+      setAutoEvolve(false);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [currentCode, isGenerating, history.length, strudelModule]);
+
+  // Auto-evolve timer effect
+  useEffect(() => {
+    // Clear existing timers
+    if (evolveTimerRef.current) clearTimeout(evolveTimerRef.current);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+
+    if (!autoEvolve || !isPlaying || !currentCode) {
+      setTimeLeft(0);
+      return;
+    }
+
+    // Set initial countdown
+    const intervalMs = evolveInterval * 60 * 1000;
+    setTimeLeft(evolveInterval * 60);
+
+    // Countdown timer (updates every second)
+    countdownRef.current = setInterval(() => {
+      setTimeLeft((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    // Evolution timer
+    evolveTimerRef.current = setTimeout(() => {
+      triggerEvolve();
+    }, intervalMs);
+
+    return () => {
+      if (evolveTimerRef.current) clearTimeout(evolveTimerRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, [autoEvolve, isPlaying, currentCode, evolveInterval, triggerEvolve]);
 
   const toggleCode = (id: number) => {
     setExpandedCode((prev) => {
@@ -164,6 +279,46 @@ export default function Home() {
             </button>
           )}
         </header>
+
+        {/* Auto-Evolve Controls */}
+        {isPlaying && currentCode && (
+          <section className="mb-6 flex items-center gap-4">
+            <button
+              onClick={() => setAutoEvolve(!autoEvolve)}
+              className={`px-3 py-1 text-xs rounded transition-colors ${
+                autoEvolve
+                  ? "bg-neutral-100 text-neutral-900"
+                  : "bg-neutral-800 text-neutral-400 hover:text-neutral-200"
+              }`}
+            >
+              Auto {autoEvolve ? "On" : "Off"}
+            </button>
+            {autoEvolve && (
+              <>
+                <select
+                  value={evolveInterval}
+                  onChange={(e) => setEvolveInterval(Number(e.target.value))}
+                  className="bg-neutral-800 text-neutral-400 text-xs px-2 py-1 rounded border-none focus:outline-none"
+                >
+                  <option value={1}>1 min</option>
+                  <option value={2}>2 min</option>
+                  <option value={3}>3 min</option>
+                  <option value={5}>5 min</option>
+                </select>
+                {timeLeft > 0 && !isGenerating && (
+                  <span className="text-xs text-neutral-500">
+                    {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
+                  </span>
+                )}
+                {isGenerating && (
+                  <span className="text-xs text-neutral-400 animate-pulse">
+                    evolving...
+                  </span>
+                )}
+              </>
+            )}
+          </section>
+        )}
 
         {/* History */}
         {history.length > 0 && (
@@ -214,7 +369,7 @@ export default function Home() {
                 )}
                 {isPlaying && activeIndex === index && (
                   <div className="px-4 pb-3">
-                    <Visualizer isPlaying={true} />
+                    <Visualizer isPlaying={true} bpm={extractBpm(item.code)} />
                   </div>
                 )}
               </div>

@@ -2,7 +2,12 @@
 
 import { useEffect, useRef } from "react";
 
-export default function Visualizer({ isPlaying }: { isPlaying: boolean }) {
+interface VisualizerProps {
+  isPlaying: boolean;
+  bpm?: number;
+}
+
+export default function Visualizer({ isPlaying, bpm = 130 }: VisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
   const smoothedRef = useRef<number[]>(new Array(128).fill(0));
@@ -34,17 +39,22 @@ export default function Visualizer({ isPlaying }: { isPlaying: boolean }) {
       return;
     }
 
+    // Calculate phase increment based on BPM
+    // At 60fps, increment = (2 * PI * BPM) / (60 * 60) for one cycle per beat
+    const baseIncrement = (Math.PI * bpm) / 1800;
+
     const draw = () => {
-      phaseRef.current += 0.02;
+      phaseRef.current += baseIncrement;
       const points = 128;
 
       for (let i = 0; i < points; i++) {
         const n = i / points;
+        // Multiple wave frequencies for more interesting visualization
         const target =
-          Math.sin(n * Math.PI * 3 + phaseRef.current) * 0.4 +
-          Math.sin(n * Math.PI * 5 - phaseRef.current * 0.7) * 0.25 +
-          Math.sin(n * Math.PI * 2 + phaseRef.current * 1.3) * 0.15;
-        smoothedRef.current[i] += (target - smoothedRef.current[i]) * 0.1;
+          Math.sin(n * Math.PI * 4 + phaseRef.current) * 0.35 +
+          Math.sin(n * Math.PI * 8 - phaseRef.current * 2) * 0.2 +
+          Math.sin(n * Math.PI * 2 + phaseRef.current * 0.5) * 0.25;
+        smoothedRef.current[i] += (target - smoothedRef.current[i]) * 0.15;
       }
 
       drawWave(ctx, canvas, smoothedRef.current);
@@ -54,7 +64,7 @@ export default function Visualizer({ isPlaying }: { isPlaying: boolean }) {
     draw();
 
     return () => cancelAnimationFrame(animationRef.current);
-  }, [isPlaying]);
+  }, [isPlaying, bpm]);
 
   function drawWave(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, values: number[]) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
