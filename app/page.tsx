@@ -15,23 +15,25 @@ function extractBpm(code: string): number {
   return match ? parseInt(match[1], 10) : 130;
 }
 
-// Evolution prompts for auto-evolve mode - designed for smooth transitions
+// Evolution prompts - short, varied, subtle changes
 const EVOLUTION_PROMPTS = [
-  "make a subtle variation - keep the same structure, only change one element slightly",
-  "slightly adjust the hi-hat pattern, keep everything else identical",
-  "add a tiny bit more reverb to one element, keep rest the same",
-  "slightly change the melody notes but keep the same rhythm and all other parts",
-  "adjust one filter cutoff value slightly, keep everything else exactly the same",
-  "make the kick slightly punchier, don't change anything else",
-  "add one small percussion hit, keep all other patterns identical",
-  "slightly change the bass notes but keep same rhythm and timing",
-  "adjust the delay time on one element only",
-  "make one synth slightly brighter, keep everything else the same",
-  "remove one small element to create space, keep the rest",
-  "add subtle pan movement to one element only",
-  "slightly vary the gain pattern on the hats, keep rest identical",
-  "change one note in the melody, keep everything else exactly the same",
-  "add a tiny bit of swing to one element only",
+  "tweak the hi-hat pattern slightly",
+  "add more reverb to one element",
+  "shift the melody notes slightly",
+  "adjust a filter cutoff",
+  "make the kick punchier",
+  "add a subtle percussion layer",
+  "vary the bass pattern",
+  "change the delay amount",
+  "brighten one synth",
+  "strip back one element",
+  "add pan movement",
+  "vary the hat velocities",
+  "change one melody note",
+  "add swing to the hats",
+  "darken the atmosphere",
+  "add a new arp note",
+  "shift the groove slightly",
 ];
 
 export default function Home() {
